@@ -85,21 +85,15 @@ impl BatchExecutor{
         }
     }
 
-    fn run_next_task(&mut self) -> !{
-        extern "C" {
-            fn __restore(ctx: usize);
-        }
-        // fetch and copy instruction stream from .data section to .text section
+    fn prepare_next_task(&mut self){
+        println!(
+            "[kernel] loading task {}: [{:#x}, {:#x})",
+            (self.queueing_task_id),
+            (self.tasks_inst_saddr[self.queueing_task_id]),
+            (self.tasks_inst_saddr[self.queueing_task_id+1])
+        );
         unsafe {self.load_task()};
         self.queueing_task_id += 1;
-        let trapframe = trap::TrapFrame::new(USER_STACK.get_top_sp(), TASK_BASE_ADDR);
-        let sp_on_frame = KERNEL_STACK.push_trapframe(trapframe);
-        println!("[kernel] __restore at {:#x}", (__restore as usize));
-        unsafe{
-            __restore(sp_on_frame as usize);
-        }
-        unreachable!();
-
     }
 
     unsafe fn load_task(&self){
@@ -132,5 +126,20 @@ pub fn init(){
 }
 pub fn run_next_task() -> !{
     // thin wrapper over static executor run_next_task call
-    EXECUTOR.exclusive_access().run_next_task();
+    let mut executor_ref = EXECUTOR.exclusive_access();
+    executor_ref.prepare_next_task();
+
+    // explicit drop is required, since this function never runs, auto-drop won't work
+    drop(executor_ref);
+    extern "C" {
+        fn __restore(ctx: usize);
+    }
+    // fetch and copy instruction stream from .data section to .text section
+    let trapframe = trap::TrapFrame::new(USER_STACK.get_top_sp(), TASK_BASE_ADDR);
+    let sp_on_frame = KERNEL_STACK.push_trapframe(trapframe);
+    unsafe{
+        __restore(sp_on_frame as usize);
+    }
+    unreachable!();
+
 }

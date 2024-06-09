@@ -1,9 +1,11 @@
 #![no_std]
 #![no_main]
-mod lang_items;
+#![feature(panic_info_message)]
 
 #[macro_use]
 mod console;
+
+mod lang_items;
 mod sbi;
 mod batch;
 mod syscall;
