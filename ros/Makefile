@@ -1,27 +1,31 @@
-ENTRY_ADDR=0x80200000
-OS_BIN_DIR=target/riscv64gc-unknown-none-elf/release
+ENTRY_ADDR :=0x80200000
+# cargo build defaults to --debug with zero arg
+MODE := debug
+OS_BIN_DIR :=target/riscv64gc-unknown-none-elf/${MODE}
+ifeq ($(MODE), release)
+	CARGO_BUILD_MODE := --release
+endif
 
-ros_uncheck: ros_bin
-	qemu-system-riscv64 \
-		-machine virt \
-		-nographic \
-		-bios ../bootloader/rustsbi-qemu.bin \
-		-device loader,file=${OS_BIN_DIR}/ros.bin,addr=${ENTRY_ADDR} \
+KERNEL_ELF := ${OS_BIN_DIR}/ros
+KERNEL_BIN := ${OS_BIN_DIR}/ros.bin
 
-ros: ros_bin
-	qemu-system-riscv64 \
-		-machine virt \
-		-nographic \
-		-bios ../bootloader/rustsbi-qemu.bin \
-		-device loader,file=${OS_BIN_DIR}/ros.bin,addr=${ENTRY_ADDR} \
-		-s -S
+QEMU_FLAGS := -machine virt \
+			  -nographic \
+			  -bios ../bootloader/rustsbi-qemu.bin \
+			  -device loader,file=${KERNEL_BIN},addr=${ENTRY_ADDR}
 
-ros_bin:
-	cargo build --release
-	rust-objcopy --strip-all ${OS_BIN_DIR}/ros -O binary ${OS_BIN_DIR}/ros.bin
+ros: kernel_bin 
+	@qemu-system-riscv64 ${QEMU_FLAGS}
 
-gdb:
-	riscv64-unknown-elf-gdb \
-	    -ex 'file target/riscv64gc-unknown-none-elf/release/os' \
+kernel_bin:
+	cargo build ${CARGO_BUILD_MODE}
+	@rust-objcopy --strip-all ${KERNEL_ELF} -O binary ${KERNEL_BIN}
+
+gdbserver: kernel_bin 
+	@qemu-system-riscv64 ${QEMU_FLAGS} -s -S
+
+gdbclient:
+	@riscv64-unknown-elf-gdb \
+	    -ex 'file ${KERNEL_ELF}' \
 	    -ex 'set arch riscv:rv64' \
 	    -ex 'target remote localhost:1234'

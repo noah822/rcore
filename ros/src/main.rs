@@ -2,17 +2,26 @@
 #![no_main]
 mod lang_items;
 
+#[macro_use]
 mod console;
 mod sbi;
+mod batch;
+mod syscall;
+mod sync;
+
+mod trap;
 
 use core::arch::global_asm;
 
 global_asm!(include_str!("entry.asm"));
+global_asm!(include_str!("link_app.S"));
+
 
 #[no_mangle]
 pub fn rust_main(){
     clear_bss();
-    println!("hello world");
+    trap::init();
+    batch::init();
     loop {}
 }
 
