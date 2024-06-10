@@ -40,7 +40,7 @@ pub fn trap_handler(ctx: &mut TrapFrame) -> &mut TrapFrame{
         take corresponding steps
     */
     let scause = scause::read();
-    // let stval = stval::read();
+    let stval = stval::read();
     match scause.cause() {
         // user syscall request
         Trap::Exception(Exception::UserEnvCall) => {
@@ -56,7 +56,21 @@ pub fn trap_handler(ctx: &mut TrapFrame) -> &mut TrapFrame{
             */
             ctx.sepc += 4;
         },
-        _ => {}
+        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
+            println!("[kernel] app pagefaults, killed it");
+            crate::batch::run_next_task();
+        },
+        Trap::Exception(Exception::IllegalInstruction) => {
+            println!("[kernel] IllegalInstruction in application, killed it");
+            crate::batch::run_next_task();
+        }
+        _ => {
+            panic!(
+                "Unsupported trap {:?}, stval = {:#x}",
+                scause.cause(),
+                stval
+            );
+        }
     }
     ctx
 }
